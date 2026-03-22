@@ -6,6 +6,7 @@ import type { ToolDefinition } from '../types.js';
 import type { ServerContext } from '../../server/context.js';
 import { ensureDir } from '../../utils/paths.js';
 import { requireToolEnabled } from '../../policy/checks.js';
+import { resolvePointTarget } from '../../utils/coordinates.js';
 
 function artifactName(prefix: string): string {
   const stamp = new Date().toISOString().replaceAll(':', '-');
@@ -13,20 +14,102 @@ function artifactName(prefix: string): string {
 }
 
 export function createScreenTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
+  const regionSchema = z
+    .object({
+      x: z.number().int().min(0).optional(),
+      y: z.number().int().min(0).optional(),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+      monitorId: z.string().min(1).optional(),
+      relativeX: z.number().int().min(0).optional(),
+      relativeY: z.number().int().min(0).optional()
+    })
+    .refine(
+      (value) =>
+        (value.x === undefined && value.y === undefined) ||
+        (value.x !== undefined && value.y !== undefined),
+      { message: 'Absolute region coordinates require both x and y' }
+    )
+    .refine(
+      (value) =>
+        (value.monitorId === undefined &&
+          value.relativeX === undefined &&
+          value.relativeY === undefined) ||
+        (value.monitorId !== undefined &&
+          value.relativeX !== undefined &&
+          value.relativeY !== undefined),
+      { message: 'Relative region coordinates require monitorId, relativeX, and relativeY' }
+    );
+
+  async function resolveRegion(
+    region:
+      | {
+          x?: number;
+          y?: number;
+          width: number;
+          height: number;
+          monitorId?: string;
+          relativeX?: number;
+          relativeY?: number;
+        }
+      | undefined
+  ) {
+    if (!region) {
+      return undefined;
+    }
+    if (region.x !== undefined || region.y !== undefined) {
+      return {
+        x: region.x ?? 0,
+        y: region.y ?? 0,
+        width: region.width,
+        height: region.height
+      };
+    }
+    if (region.monitorId !== undefined) {
+      const point = resolvePointTarget(
+        {
+          monitorId: region.monitorId,
+          relativeX: region.relativeX,
+          relativeY: region.relativeY
+        },
+        await context.backends.monitor.listMonitors()
+      );
+      if (!point) {
+        return undefined;
+      }
+      return {
+        x: point.x,
+        y: point.y,
+        width: region.width,
+        height: region.height
+      };
+    }
+    return undefined;
+  }
+
   async function inspectScreen(
     input: {
       mode: 'fullscreen' | 'active-window' | 'region';
-      region?: { x: number; y: number; width: number; height: number };
+      region?: {
+        x?: number;
+        y?: number;
+        width: number;
+        height: number;
+        monitorId?: string;
+        relativeX?: number;
+        relativeY?: number;
+      };
       ocr: boolean;
     }
   ) {
+    const region = await resolveRegion(input.region);
     requireToolEnabled(context.policy, 'inspect_screen');
-    context.policy.assertScreenshotAllowed({ region: input.region });
+    context.policy.assertScreenshotAllowed({ region });
     const dir = await ensureDir(context.config.artifactDir);
     const path = join(dir, artifactName('inspect'));
     const screenshot = await context.backends.screenshot.takeScreenshot({
       mode: input.mode,
-      region: input.region,
+      region,
       outputPath: path
     });
 
@@ -53,23 +136,17 @@ export function createScreenTools(context: ServerContext): Array<ToolDefinition<
       description: 'Capture a full screen, active window, or explicit region screenshot.',
       inputSchema: z.object({
         mode: z.enum(['fullscreen', 'active-window', 'region']).default('fullscreen'),
-        region: z
-          .object({
-            x: z.number().int().min(0),
-            y: z.number().int().min(0),
-            width: z.number().int().positive(),
-            height: z.number().int().positive()
-          })
-          .optional()
+        region: regionSchema.optional()
       }),
       async execute(input) {
         requireToolEnabled(context.policy, 'take_screenshot');
-        context.policy.assertScreenshotAllowed({ region: input.region });
+        const region = await resolveRegion(input.region);
+        context.policy.assertScreenshotAllowed({ region });
         const dir = await ensureDir(context.config.artifactDir);
         const path = join(dir, artifactName('screenshot'));
         const result = await context.backends.screenshot.takeScreenshot({
           mode: input.mode,
-          region: input.region,
+          region,
           outputPath: path
         });
         return result;
@@ -95,14 +172,7 @@ export function createScreenTools(context: ServerContext): Array<ToolDefinition<
       description: 'Capture a screenshot and optionally run OCR when available.',
       inputSchema: z.object({
         mode: z.enum(['fullscreen', 'active-window', 'region']).default('fullscreen'),
-        region: z
-          .object({
-            x: z.number().int().min(0),
-            y: z.number().int().min(0),
-            width: z.number().int().positive(),
-            height: z.number().int().positive()
-          })
-          .optional(),
+        region: regionSchema.optional(),
         ocr: z.boolean().default(true)
       }),
       async execute(input) {

@@ -4,11 +4,11 @@
 
 ### Wayland Backend
 
-Add honest backend support for Wayland-native input and screenshots where available, without pretending X11 semantics still apply.
+Extend the new honest Wayland backend surface so more compositors and input flows are supported beyond the current partial implementation.
 
 ### Accessibility-Tree Integration
 
-Enable semantic targeting through accessibility APIs rather than only coordinates and window matching.
+Build action-oriented semantic targeting on top of the new accessibility snapshot/search layer.
 
 ### Better OCR
 
@@ -16,7 +16,7 @@ Support alternate OCR engines, richer language handling, and better confidence r
 
 ### Multi-Monitor Support
 
-Add monitor-aware coordinate validation, targeting, and monitor enumeration.
+Monitor-aware coordinate routing and enumeration now exist. The next step is per-monitor policy, focus, and selection heuristics.
 
 ### Semantic Element Targeting
 

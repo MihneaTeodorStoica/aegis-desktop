@@ -23,6 +23,10 @@ Returns backend availability and degradation details.
 
 Returns readiness and backend diagnostics.
 
+### `list_monitors`
+
+Returns detected monitor geometry, origin, primary-monitor state, and active state.
+
 ## Window Tools
 
 - `list_windows`
@@ -48,6 +52,8 @@ Modes:
 - `region`
 
 Artifacts are always written to the configured artifact directory.
+
+Region capture can be expressed with absolute coordinates or monitor-relative coordinates.
 
 ### `inspect_screen`
 
@@ -83,6 +89,8 @@ These primitives are intended for stateful agent interactions.
 - `get_pointer_position`
 
 These remain available for convenience, but they share the same backend semantics as the primitives.
+
+Several pointer tools also support monitor-relative coordinates through `monitorId`, `relativeX`, and `relativeY`.
 
 ### `perform_input_sequence`
 
@@ -176,3 +184,13 @@ Example dry run:
 - `write_clipboard`
 
 `launch_app` is policy-gated and restricted by the configured allowlist.
+
+## Accessibility Tools
+
+### `get_accessibility_tree`
+
+Returns a structured accessibility snapshot when the optional AT-SPI backend is available.
+
+### `find_semantic_targets`
+
+Returns matching accessibility nodes for a semantic query. This is the initial semantic targeting layer and is currently inspection/search only.

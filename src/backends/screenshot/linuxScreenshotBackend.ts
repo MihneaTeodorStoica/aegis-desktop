@@ -9,6 +9,7 @@ import type {
 } from '../types.js';
 import type { AppConfig } from '../../config/schema.js';
 import { isCommandAvailable, runCommand } from '../../utils/exec.js';
+import { readPngMetadata } from '../../utils/png.js';
 
 type ScreenshotCommand = 'maim' | 'import' | 'gnome-screenshot' | null;
 
@@ -42,6 +43,56 @@ export async function detectScreenshotCapabilities(
   };
 }
 
+export function buildLinuxScreenshotCommand(
+  selected: Exclude<ScreenshotCommand, null>,
+  options: ScreenshotOptions
+): [string, string[]] {
+  if (selected === 'maim') {
+    if (options.mode === 'region' && options.region) {
+      return [
+        'maim',
+        [
+          '-g',
+          `${options.region.width}x${options.region.height}+${options.region.x}+${options.region.y}`,
+          options.outputPath
+        ]
+      ];
+    }
+    if (options.mode === 'active-window') {
+      return ['maim', ['-i', '$(xdotool getactivewindow)', options.outputPath]];
+    }
+    return ['maim', [options.outputPath]];
+  }
+
+  if (selected === 'import') {
+    if (options.mode === 'region' && options.region) {
+      return [
+        'import',
+        [
+          '-window',
+          'root',
+          '-crop',
+          `${options.region.width}x${options.region.height}+${options.region.x}+${options.region.y}`,
+          options.outputPath
+        ]
+      ];
+    }
+    return ['import', ['-window', 'root', options.outputPath]];
+  }
+
+  if (options.mode === 'region' && options.region) {
+    throw new Error(
+      'Deterministic region screenshots are not supported with gnome-screenshot; install maim or import.'
+    );
+  }
+
+  if (options.mode === 'active-window') {
+    return ['gnome-screenshot', ['--window', '--file', options.outputPath]];
+  }
+
+  return ['gnome-screenshot', ['--file', options.outputPath]];
+}
+
 export function createLinuxScreenshotBackend(
   context: BackendContext
 ): ScreenshotBackend {
@@ -52,57 +103,7 @@ export function createLinuxScreenshotBackend(
     if (!selected) {
       throw new Error('No screenshot backend available');
     }
-
-    if (selected === 'maim') {
-      if (options.mode === 'region' && options.region) {
-        return [
-          'maim',
-          [
-            '-g',
-            `${options.region.width}x${options.region.height}+${options.region.x}+${options.region.y}`,
-            options.outputPath
-          ]
-        ];
-      }
-      if (options.mode === 'active-window') {
-        return ['maim', ['-i', '$(xdotool getactivewindow)', options.outputPath]];
-      }
-      return ['maim', [options.outputPath]];
-    }
-
-    if (selected === 'import') {
-      if (options.mode === 'region' && options.region) {
-        return [
-          'import',
-          [
-            '-window',
-            'root',
-            '-crop',
-            `${options.region.width}x${options.region.height}+${options.region.x}+${options.region.y}`,
-            options.outputPath
-          ]
-        ];
-      }
-      return ['import', ['-window', 'root', options.outputPath]];
-    }
-
-    if (options.mode === 'region' && options.region) {
-      return [
-        'gnome-screenshot',
-        [
-          '--file',
-          options.outputPath,
-          '--area',
-          `--border-effect=none`
-        ]
-      ];
-    }
-
-    if (options.mode === 'active-window') {
-      return ['gnome-screenshot', ['--window', '--file', options.outputPath]];
-    }
-
-    return ['gnome-screenshot', ['--file', options.outputPath]];
+    return buildLinuxScreenshotCommand(selected, options);
   }
 
   return {
@@ -116,10 +117,13 @@ export function createLinuxScreenshotBackend(
       }
       await runCommand(command, args, { timeoutMs });
       const file = await stat(options.outputPath);
+      const metadata = await readPngMetadata(options.outputPath);
       return {
         path: options.outputPath,
         mimeType: 'image/png',
         sizeBytes: file.size,
+        width: metadata?.width,
+        height: metadata?.height,
         backend: command
       } satisfies ScreenshotResult;
     }

@@ -1,5 +1,10 @@
 import type { BackendContext, CapabilityState, ClipboardBackend } from '../types.js';
-import { isCommandAvailable, runCommand } from '../../utils/exec.js';
+import {
+  isCommandAvailable,
+  runCommand,
+  runCommandWithInput
+} from '../../utils/exec.js';
+import { detectSessionType } from '../session.js';
 
 export function createClipboardBackend(context: BackendContext): ClipboardBackend {
   const timeoutMs = context.config.commandTimeoutMs;
@@ -7,17 +12,30 @@ export function createClipboardBackend(context: BackendContext): ClipboardBacken
   return {
     name: 'xclip',
     async getCapability(): Promise<CapabilityState> {
-      const available = (await isCommandAvailable('xclip')) || (await isCommandAvailable('xsel'));
+      const sessionType = detectSessionType();
+      const available =
+        (await isCommandAvailable('wl-copy')) ||
+        (await isCommandAvailable('wl-paste')) ||
+        (await isCommandAvailable('xclip')) ||
+        (await isCommandAvailable('xsel'));
       return {
         name: 'clipboard',
         available,
         details: available
-          ? 'Clipboard available via xclip or xsel.'
-          : 'Clipboard support unavailable; install xclip or xsel.',
-        dependencies: ['xclip', 'xsel']
+          ? sessionType === 'wayland'
+            ? 'Clipboard available via wl-copy/wl-paste or X11 fallback tools.'
+            : 'Clipboard available via xclip/xsel or wl-copy/wl-paste.'
+          : 'Clipboard support unavailable; install wl-copy/wl-paste, xclip, or xsel.',
+        dependencies: ['wl-copy', 'wl-paste', 'xclip', 'xsel']
       };
     },
     async readClipboard(): Promise<string> {
+      if (detectSessionType() === 'wayland' && (await isCommandAvailable('wl-paste'))) {
+        const result = await runCommand('wl-paste', ['--no-newline'], {
+          timeoutMs
+        });
+        return result.stdout;
+      }
       if (await isCommandAvailable('xclip')) {
         const result = await runCommand('xclip', ['-o', '-selection', 'clipboard'], {
           timeoutMs
@@ -29,14 +47,18 @@ export function createClipboardBackend(context: BackendContext): ClipboardBacken
       return result.stdout;
     },
     async writeClipboard(text: string): Promise<void> {
+      if (detectSessionType() === 'wayland' && (await isCommandAvailable('wl-copy'))) {
+        await runCommandWithInput('wl-copy', [], text, { timeoutMs });
+        return;
+      }
       if (await isCommandAvailable('xclip')) {
-        await runCommand('sh', ['-c', `printf %s ${JSON.stringify(text)} | xclip -selection clipboard`], {
+        await runCommandWithInput('xclip', ['-selection', 'clipboard'], text, {
           timeoutMs
         });
         return;
       }
 
-      await runCommand('sh', ['-c', `printf %s ${JSON.stringify(text)} | xsel --clipboard --input`], {
+      await runCommandWithInput('xsel', ['--clipboard', '--input'], text, {
         timeoutMs
       });
     }

@@ -32,6 +32,8 @@ Current tests focus on:
 - policy behavior
 - title matching
 - wmctrl output parsing
+- monitor parsing and coordinate routing
+- screenshot command construction
 - input sequence normalization and cleanup behavior
 
-Follow-up work should add more backend command-construction tests and transport-level smoke coverage.
+Follow-up work should continue expanding backend command-construction coverage and transport-level smoke coverage.

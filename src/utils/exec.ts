@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -89,4 +89,86 @@ export async function isCommandAvailable(command: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function runCommandWithInput(
+  command: string,
+  args: string[],
+  input: string,
+  options: CommandRunnerOptions
+): Promise<CommandResult> {
+  const startedAt = Date.now();
+
+  return new Promise<CommandResult>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let finished = false;
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+    }, options.timeoutMs);
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      if (finished) {
+        return;
+      }
+      finished = true;
+      reject(
+        new CommandExecutionError(`Failed to execute command: ${command}`, {
+          command,
+          args,
+          stdout,
+          stderr: stderr || error.message,
+          exitCode: null,
+          timeoutMs: options.timeoutMs
+        })
+      );
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (finished) {
+        return;
+      }
+      finished = true;
+      if (code !== 0) {
+        reject(
+          new CommandExecutionError(`Failed to execute command: ${command}`, {
+            command,
+            args,
+            stdout,
+            stderr,
+            exitCode: code,
+            timeoutMs: options.timeoutMs
+          })
+        );
+        return;
+      }
+      resolve({
+        command,
+        args,
+        stdout,
+        stderr,
+        exitCode: code ?? 0,
+        durationMs: Date.now() - startedAt
+      });
+    });
+
+    child.stdin.write(input);
+    child.stdin.end();
+  });
 }

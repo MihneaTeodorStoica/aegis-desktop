@@ -14,7 +14,8 @@ export function createSystemTools(context: ServerContext): Array<ToolDefinition<
         return {
           version: '0.1.0',
           ...context.backends.systemInfo,
-          capabilities: context.backends.capabilities
+          capabilities: context.backends.capabilities,
+          monitors: await context.backends.monitor.listMonitors().catch(() => [])
         };
       }
     },

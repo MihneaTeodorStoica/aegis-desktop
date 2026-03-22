@@ -24,10 +24,14 @@ Desktop automation often starts as brittle shell glue. That does not scale well 
 
 - stdio MCP server using the official MCP TypeScript SDK
 - Linux Mint / Ubuntu-like focus with honest X11-first support
-- modular backend interfaces for windows, screenshots, input, OCR, launching, and clipboard
+- real session-aware backend selection for X11 and Wayland surfaces
+- modular backend interfaces for windows, screenshots, input, OCR, launching, clipboard, monitors, and accessibility
 - explicit tool schemas with Zod validation
 - structured tool errors and capability reporting
 - policy layer with safe mode, launch allowlists, tool disable flags, screenshot throttling, env restrictions, and coordinate checks
+- monitor enumeration and monitor-relative coordinate routing
+- screenshot metadata extraction with explicit deterministic-region backend semantics
+- optional accessibility-tree snapshot and semantic target search when AT-SPI support exists
 - stateful low-level input primitives: `key_down`, `key_up`, `mouse_down`, `mouse_up`, `mouse_move`
 - first-class low-level orchestration tool: `perform_input_sequence`
 - artifact management for screenshots and inspection output
@@ -68,19 +72,22 @@ Current target:
 
 Current partial or unsupported areas:
 
-- Wayland: explicitly reported as partial/unsupported for many input and window operations
-- accessibility-tree targeting: not yet implemented
-- semantic element targeting: not yet implemented
+- Wayland input and window control are still partial and backend-dependent
+- active-window semantics on Wayland remain limited
+- semantic target execution is not implemented yet; current support is inspection/search only
 
 ## Backend Strategy
 
 The implementation is intentionally pluggable. The v1 default backend strategy is:
 
-- window management: `wmctrl` plus `xdotool` and `xwininfo`
-- input automation: `xdotool`
-- screenshots: `maim`, then `import`, then `gnome-screenshot`
+- window management: `wmctrl` plus `xdotool` and `xwininfo` on X11; explicit unsupported backend on Wayland
+- input automation: `xdotool` on X11; partial `ydotool` surface on Wayland
+- screenshots on X11: `maim`, then `import`, then `gnome-screenshot`
+- screenshots on Wayland: `grim`, then `gnome-screenshot`
+- monitor enumeration: `xrandr` on X11 and `wlr-randr` on supported Wayland stacks
 - OCR: `tesseract` when enabled and installed, otherwise graceful degradation
-- clipboard: `xclip`, then `xsel`
+- clipboard: `wl-copy`/`wl-paste` on Wayland when available, then `xclip`, then `xsel`
+- accessibility: Python `pyatspi` snapshot/search when available
 - app launching: `spawn` and `xdg-open`
 
 Future Wayland and accessibility-driven backends can be added behind the same interfaces without rewriting tool handlers.
@@ -98,6 +105,7 @@ Strongly recommended Linux binaries:
 - `wmctrl`
 - `xdotool`
 - `xwininfo`
+- `xrandr`
 - `maim` or `imagemagick` (`import`) or `gnome-screenshot`
 - `xclip` or `xsel`
 - `xdg-open`
@@ -105,12 +113,17 @@ Strongly recommended Linux binaries:
 Optional:
 
 - `tesseract`
+- `grim`
+- `wlr-randr`
+- `wl-copy` and `wl-paste`
+- `ydotool`
+- Python 3 with `pyatspi`
 
 Example install on Ubuntu-like systems:
 
 ```bash
 sudo apt update
-sudo apt install -y wmctrl xdotool x11-utils maim imagemagick gnome-screenshot xclip xsel xdg-utils tesseract-ocr
+sudo apt install -y wmctrl xdotool x11-utils x11-xserver-utils maim imagemagick gnome-screenshot xclip xsel xdg-utils tesseract-ocr grim wl-clipboard python3
 ```
 
 ## Installation
@@ -170,6 +183,7 @@ System and diagnostics:
 - `get_system_info`
 - `list_capabilities`
 - `health_check`
+- `list_monitors`
 
 Windows:
 
@@ -213,6 +227,11 @@ Apps and clipboard:
 - `read_clipboard`
 - `write_clipboard`
 
+Accessibility and semantics:
+
+- `get_accessibility_tree`
+- `find_semantic_targets`
+
 See [tools.md](/home/mihnea/Programming/GitHub/aegis-desktop/docs/tools.md) for schemas, behavior, and examples.
 
 ## Stateful Input Model
@@ -226,6 +245,8 @@ See [tools.md](/home/mihnea/Programming/GitHub/aegis-desktop/docs/tools.md) for 
 - `mouse_move`
 
 High-level tools such as `mouse_drag` and `press_keys` build on those primitives. For more complex interactions, use `perform_input_sequence`.
+
+Pointer and screenshot tools also support monitor-relative targeting through `monitorId`, `relativeX`, and `relativeY` where coordinates make sense.
 
 ### `perform_input_sequence`
 
@@ -343,8 +364,10 @@ There is also a reusable example at [codex-stdio.json](/home/mihnea/Programming/
 
 - If `list_capabilities` reports missing backends, install the corresponding Linux binaries.
 - If running under Wayland, expect partial or unavailable support for window management and synthetic input.
-- If screenshots fail, try setting `AEGIS_SCREENSHOT_BACKEND=maim` or `import`.
+- If screenshots fail on X11, try setting `AEGIS_SCREENSHOT_BACKEND=maim` or `import`.
+- If screenshots fail on Wayland, install `grim`; `gnome-screenshot` has limited deterministic region behavior.
 - If OCR is empty, verify `tesseract` is installed and `AEGIS_OCR_ENABLED=true`.
+- If semantic tools return no nodes, verify `python3` and `pyatspi` are available on the desktop session.
 - If launch requests are denied, check `AEGIS_ALLOWED_LAUNCH_COMMANDS`.
 - If stateful input sequences are rejected, inspect validation errors and coordinate clamping warnings.
 
@@ -374,11 +397,11 @@ The goal is to keep tools thin and backends swappable.
 
 ## Roadmap
 
-- Wayland-aware input and window backends
-- accessibility-tree integration
+- Wayland-aware input and window backends beyond the current partial surface
+- accessibility-tree action execution and richer semantic targeting
 - richer OCR engines and language packs
-- multi-monitor aware coordinate routing
-- semantic UI targeting
+- multi-monitor routing is now present; next step is per-monitor policy and focus control
+- semantic UI targeting that can drive actions, not just inspection
 - recording and replay
 - policy plugins and richer approval models
 

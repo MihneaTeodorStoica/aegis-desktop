@@ -24,6 +24,18 @@ export interface SystemInfo {
   displayServer: string | null;
 }
 
+export interface MonitorInfo {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  primary: boolean;
+  active: boolean;
+  scale?: number;
+}
+
 export interface WindowInfo {
   id: string;
   title: string;
@@ -92,6 +104,31 @@ export interface InputBackend {
   scroll(amount: number, direction: 'up' | 'down'): Promise<void>;
 }
 
+export interface MonitorBackend {
+  readonly name: string;
+  getCapability(): Promise<CapabilityState>;
+  listMonitors(): Promise<MonitorInfo[]>;
+  getPrimaryMonitor(): Promise<MonitorInfo | null>;
+  getVirtualScreen(): Promise<{ width: number; height: number }>;
+}
+
+export interface AccessibilityNode {
+  id: string;
+  role: string;
+  name?: string;
+  description?: string;
+  text?: string;
+  bounds?: Rect;
+  children?: AccessibilityNode[];
+}
+
+export interface AccessibilityBackend {
+  readonly name: string;
+  getCapability(): Promise<CapabilityState>;
+  snapshotTree(): Promise<AccessibilityNode[]>;
+  findNodes(query: string): Promise<AccessibilityNode[]>;
+}
+
 export interface OcrBackend {
   readonly name: string;
   getCapability(): Promise<CapabilityState>;
@@ -130,9 +167,11 @@ export interface BackendSuite {
   window: WindowBackend;
   screenshot: ScreenshotBackend;
   input: InputBackend;
+  monitor: MonitorBackend;
   ocr: OcrBackend;
   launch: LaunchBackend;
   clipboard: ClipboardBackend;
+  accessibility: AccessibilityBackend;
   capabilities: CapabilityState[];
 }
 

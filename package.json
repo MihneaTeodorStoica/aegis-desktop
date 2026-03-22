@@ -1,5 +1,5 @@
 {
-  "name": "aegis-desktop",
+  "name": "@mtstoica/aegis-desktop",
   "version": "0.1.0",
   "description": "Extensible desktop-control MCP server for Linux-first agentic automation, with pluggable backends for windows, input, screenshots, OCR, app launching, and policy-aware computer interaction.",
   "type": "module",

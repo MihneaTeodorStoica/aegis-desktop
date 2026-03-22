@@ -38,11 +38,13 @@
 - window management
 - screenshots
 - input
+- monitors
 - OCR
 - launching
 - clipboard
+- accessibility
 
-Current implementations are Linux/X11-focused and rely on mature CLI tools. Future Wayland or accessibility backends should plug into the same interfaces.
+Current implementations are Linux/X11-focused and rely on mature CLI tools. The backend layer now also includes real session-aware backend selection so Wayland can expose partial support honestly instead of inheriting X11 assumptions.
 
 ### Policy
 
@@ -65,6 +67,10 @@ Complex input is intentionally separated from tool handlers:
 - `src/input-sequence/types.ts`
 
 This keeps validation, normalization, and runtime execution distinct, which makes the sequence tool easier to extend later.
+
+### Coordinate Routing
+
+Monitor-aware coordinate routing lives in `src/utils/coordinates.ts`. Tools can accept absolute coordinates or monitor-relative coordinates, resolve them through the monitor backend, and only then call the input or screenshot backends.
 
 ## Error Model
 

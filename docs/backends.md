@@ -31,6 +31,12 @@ Strategy:
 - low-level stateful operations: `keyDown`, `keyUp`, `mouseDown`, `mouseUp`, `mouseMove`
 - high-level helpers built on those primitives
 
+Wayland implementation:
+
+- `src/backends/input/waylandInputBackend.ts`
+- partial support via `ydotool`
+- unsupported operations fail explicitly rather than pretending parity with X11
+
 ### Screenshot Backend
 
 Implementation:
@@ -44,6 +50,25 @@ Strategy:
   - `maim`
   - `import`
   - `gnome-screenshot`
+
+Wayland implementation:
+
+- `src/backends/screenshot/waylandScreenshotBackend.ts`
+- prefers `grim`
+- falls back to `gnome-screenshot` with explicit region limitations
+- extracts PNG dimensions after capture
+
+### Monitor Backend
+
+Implementation:
+
+- `src/backends/monitors/linuxMonitorBackend.ts`
+
+Strategy:
+
+- use `xrandr --listmonitors` on X11
+- use `wlr-randr` on supported Wayland stacks
+- expose geometry and primary-monitor metadata for coordinate routing
 
 ### OCR Backend
 
@@ -78,6 +103,25 @@ Strategy:
 - prefer `xclip`
 - fall back to `xsel`
 
+Wayland additions:
+
+- prefer `wl-copy` and `wl-paste` when available
+- writes are piped through stdin instead of shell interpolation
+
+### Accessibility Backend
+
+Implementation:
+
+- `src/backends/accessibility/pythonAtspiBackend.ts`
+- `scripts/accessibility_snapshot.py`
+
+Strategy:
+
+- use Python `pyatspi` when available
+- return a structured accessibility snapshot
+- support semantic query filtering
+- degrade to a no-op backend when unavailable
+
 ## Capability Detection
 
 `src/backends/detect.ts` performs capability detection at startup and surfaces the results through:
@@ -90,4 +134,4 @@ This makes degraded environments visible to callers instead of causing confusing
 
 ## Wayland Notes
 
-Wayland support is not faked in v1. The architecture is ready for future Wayland backends, but current X11-style synthetic input and window semantics do not automatically carry over.
+Wayland support is no longer a silent X11 assumption. The server now selects explicit Wayland backends and reports unsupported operations honestly where compositor-portable behavior is not yet implemented.

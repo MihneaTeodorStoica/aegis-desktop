@@ -24,7 +24,9 @@ export function createPerformInputSequenceTool(
     inputSchema: performInputSequenceSchema,
     async execute(input) {
       requireToolEnabled(context.policy, 'perform_input_sequence');
-      const screenSize = await getScreenSizeSafe(context.backends.input);
+      const screenSize =
+        (await context.backends.monitor.getVirtualScreen().catch(() => undefined)) ??
+        (await getScreenSizeSafe(context.backends.input));
       const normalized = normalizeInputSequence(input.steps, {
         defaultDelayMs: input.default_delay_ms,
         clampToScreen: input.clamp_to_screen,

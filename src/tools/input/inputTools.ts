@@ -4,8 +4,38 @@ import type { ToolDefinition } from '../types.js';
 import type { ServerContext } from '../../server/context.js';
 import { requireToolEnabled } from '../../policy/checks.js';
 import { createPerformInputSequenceTool } from './performInputSequence.js';
+import { resolvePointTarget } from '../../utils/coordinates.js';
+
+const coordinateTargetSchema = z
+  .object({
+    x: z.number().int().min(0).optional(),
+    y: z.number().int().min(0).optional(),
+    monitorId: z.string().min(1).optional(),
+    relativeX: z.number().int().min(0).optional(),
+    relativeY: z.number().int().min(0).optional()
+  })
+  .refine(
+    (value) =>
+      (value.x === undefined && value.y === undefined) ||
+      (value.x !== undefined && value.y !== undefined),
+    { message: 'Absolute coordinates require both x and y' }
+  )
+  .refine(
+    (value) =>
+      (value.monitorId === undefined &&
+        value.relativeX === undefined &&
+        value.relativeY === undefined) ||
+      (value.monitorId !== undefined &&
+        value.relativeX !== undefined &&
+        value.relativeY !== undefined),
+    { message: 'Relative coordinates require monitorId, relativeX, and relativeY' }
+  );
 
 export function createInputTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
+  async function resolveTarget(input: z.infer<typeof coordinateTargetSchema>) {
+    return resolvePointTarget(input, await context.backends.monitor.listMonitors());
+  }
+
   return [
     createPerformInputSequenceTool(context),
     {
@@ -37,12 +67,11 @@ export function createInputTools(context: ServerContext): Array<ToolDefinition<z
       description: 'Press and hold a mouse button, optionally after moving.',
       inputSchema: z.object({
         button: z.enum(['left', 'middle', 'right']),
-        x: z.number().int().min(0).optional(),
-        y: z.number().int().min(0).optional()
-      }),
+      }).and(coordinateTargetSchema),
       async execute(input) {
         requireToolEnabled(context.policy, 'mouse_down');
-        await context.backends.input.mouseDown(input.button, input.x, input.y);
+        const target = await resolveTarget(input);
+        await context.backends.input.mouseDown(input.button, target?.x, target?.y);
         return { ok: true };
       }
     },
@@ -51,26 +80,26 @@ export function createInputTools(context: ServerContext): Array<ToolDefinition<z
       description: 'Release a mouse button, optionally after moving.',
       inputSchema: z.object({
         button: z.enum(['left', 'middle', 'right']),
-        x: z.number().int().min(0).optional(),
-        y: z.number().int().min(0).optional()
-      }),
+      }).and(coordinateTargetSchema),
       async execute(input) {
         requireToolEnabled(context.policy, 'mouse_up');
-        await context.backends.input.mouseUp(input.button, input.x, input.y);
+        const target = await resolveTarget(input);
+        await context.backends.input.mouseUp(input.button, target?.x, target?.y);
         return { ok: true };
       }
     },
     {
       name: 'mouse_move',
       description: 'Move the pointer to absolute coordinates.',
-      inputSchema: z.object({
-        x: z.number().int().min(0),
-        y: z.number().int().min(0)
-      }),
+      inputSchema: coordinateTargetSchema,
       async execute(input) {
         requireToolEnabled(context.policy, 'mouse_move');
-        context.policy.assertCoordinates(input.x, input.y);
-        await context.backends.input.mouseMove(input.x, input.y);
+        const target = await resolveTarget(input);
+        if (!target) {
+          throw new Error('mouse_move requires coordinates');
+        }
+        context.policy.assertCoordinates(target.x, target.y);
+        await context.backends.input.mouseMove(target.x, target.y);
         return { ok: true };
       }
     },
@@ -80,16 +109,12 @@ export function createInputTools(context: ServerContext): Array<ToolDefinition<z
       inputSchema: z.object({
         button: z.enum(['left', 'middle', 'right']).default('left'),
         count: z.number().int().positive().default(1),
-        x: z.number().int().min(0).optional(),
-        y: z.number().int().min(0).optional()
-      }),
+      }).and(coordinateTargetSchema),
       async execute(input) {
         requireToolEnabled(context.policy, 'mouse_click');
-        if ((input.x === undefined) !== (input.y === undefined)) {
-          throw new Error('Provide both x and y or neither');
-        }
+        const target = await resolveTarget(input);
         for (let count = 0; count < input.count; count += 1) {
-          await context.backends.input.mouseDown(input.button, input.x, input.y);
+          await context.backends.input.mouseDown(input.button, target?.x, target?.y);
           await context.backends.input.mouseUp(input.button);
         }
         return { ok: true };
@@ -164,7 +189,26 @@ export function createInputTools(context: ServerContext): Array<ToolDefinition<z
       description: 'Return the current pointer coordinates.',
       inputSchema: z.object({}).strict(),
       async execute() {
-        return await context.backends.input.getPointerPosition();
+        const pointer = await context.backends.input.getPointerPosition();
+        const monitors = await context.backends.monitor.listMonitors().catch(() => []);
+        const activeMonitor =
+          monitors.find(
+            (monitor) =>
+              pointer.x >= monitor.x &&
+              pointer.x < monitor.x + monitor.width &&
+              pointer.y >= monitor.y &&
+              pointer.y < monitor.y + monitor.height
+          ) ?? null;
+        return {
+          ...pointer,
+          monitor: activeMonitor
+            ? {
+                id: activeMonitor.id,
+                relativeX: pointer.x - activeMonitor.x,
+                relativeY: pointer.y - activeMonitor.y
+              }
+            : null
+        };
       }
     },
     {
