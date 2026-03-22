@@ -24,6 +24,10 @@
 - Prefer descriptive test names: `describe('performInputSequence')` and `it('releases modifiers on failure')`.
 - Run `npm test` before opening PRs and include coverage anecdotes in the PR description if you modified core tooling.
 
+## Desktop guidance
+
+- Use the [aegis-desktop skill](.codex/skills/aegis-desktop/SKILL.md) whenever the request targets graphical desktop control: switch virtual workspaces, inspect or capture the screen, manage windows, launch allowed desktop apps/URLs, or send explicit mouse/keyboard input. Prefer structured MCP tools over keystroke macros to keep actions deterministic.
+
 ## Commit & Pull Request Guidelines
 - Follow the existing git history style: short imperative summary (e.g., `Add safe-mode policy checks`).
 - Preserve the required commit trailer: append `Co-authored-by: Codex <noreply@openai.com>` to each commit message body if it is not already present.

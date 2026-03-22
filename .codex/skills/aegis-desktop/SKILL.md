@@ -1,44 +1,109 @@
 ---
 name: aegis-desktop
-description: Prefer structured MCP calls for workspace, window, and screen actions instead of raw input when `aegis_desktop` is available.
+description: Use this skill when the user wants to control the graphical desktop via the aegis_desktop MCP server: switch virtual workspaces, inspect the screen, manage windows, launch allowed apps, or send explicit mouse/keyboard input. Do not use this skill for filesystem directories, project workspaces, repositories, or shell navigation.
 ---
 
 # Aegis Desktop Skill
 
-Use this skill anytime you must move windows, switch workspaces, capture screenshots/OCR, launch allowed apps, or dispatch input via the `aegis_desktop` MCP server. The skill exists so the agent never falls back to brittle keyboard macros when Desktop tools can operate deterministically.
+This skill governs graphical desktop control through the `aegis_desktop` MCP server.
 
-## How to use `aegis_desktop`
+## Scope
 
-1. **Identify the intent.** Confirm the user wants to manipulate windows, switch desktops, take screenshots/OCR, run an allowed app, or send explicit low-level input.
-2. **Map intent to canonical tools.**
-   - Workspace/layout adjustments → `switch_workspace`, `list_windows`, `focus_window`, `move_window`, `set_window_bounds`, `move_window_to_primary_monitor`.
-   - Screen capture/OCR → `take_screenshot`, `inspect_screen`, `find_text_on_screen`, `artifact_list`.
-   - Mouse/keyboard interaction → primitive tools (`mouse_move`, `mouse_click`, `key_down`, etc.) or `perform_input_sequence`.
-   - Launching apps/URLs → `launch_app` or `open_url` only when listed in `AEGIS_ALLOWED_LAUNCH_COMMANDS` (see `/home/mihnea/.codex/config.toml` environment).
-3. **Validate tool zeros.** Double-check required indexes (workspaces are zero-based) and monitor references before composing the request.
-4. **Provide context in the response.** When reporting what was done, mention the tool(s) used and the key parameters (target workspace index, window id/title, screenshot mode, sequence steps, etc.).
+Use this skill only for GUI/desktop actions, including:
+- switching graphical virtual workspaces/desktops
+- listing, focusing, moving, or resizing windows
+- taking screenshots or OCR/inspection
+- launching allowed desktop apps or URLs
+- sending low-level mouse/keyboard input
 
-## Useful workflow tips
+Do not use this skill for:
+- changing shell working directory
+- changing repository/project workspace
+- searching files
+- editing code unless explicitly requested
 
-- **Zero-based workspace math.** If a user says “workspace three,” send `{"workspace": 2}` and mention in the explanation that desktops are zero-based.
-- **Move vs. resize.** Use `move_window` when the goal is placement; prefer `set_window_bounds` when a precise geometry is required. Provide the target monitor in the request to avoid ambiguous defaults.
-- **Frozen refs.** Always snapshot (e.g., `list_windows` or `inspect_screen`) before referencing because window IDs or titles can change between commands.
-- **Sequence safety.** When pressing modifiers or dragging, build a `perform_input_sequence` with explicit `key_down`/`key_up` to avoid sticking keys and to capture cleanup.
-- **OCR + screenshots.** If you need text evidence, call `inspect_screen` with `ocr: true` and mention the artifact path for traceability. For just a screenshot, use `take_screenshot` specifying `mode` (`fullscreen`, `active-window`, or `region`).
+## Critical semantics
 
-## Step-by-step example
+- The word **workspace** means a graphical virtual desktop managed by the window manager.
+- It never means the shell current directory.
+- It never means a repository root or coding workspace.
+- If the user says “switch to workspace 3”, interpret this as changing the visible desktop to virtual workspace 3.
 
-1. **Switch to workspace 1.** Call `switch_workspace` with `{"workspace": 0}`; describe in the reply that the agent switched to workspace 1 (zero-based index 0).
-2. **Snap a window.** Run `move_window` with target coordinates (monitorId + `x`/`y`) instead of sending shortcut keys.
-3. **Capture proof.** Use `take_screenshot` (`"mode": "active-window"` or `"fullscreen"`) and mention the artifact filename located under `artifacts/`.
+## Required decision policy
 
-## When to fall back
+For any desktop request, follow this order:
 
-- If the MCP server reports “unsupported,” describe the limitation and abort the action; do not send keyboard shortcuts.
-- If an action requires unavailable permissions (unsafe launches, not in `AEGIS_ALLOWED_LAUNCH_COMMANDS`), ask the user how to proceed rather than improvising.
+1. Determine whether a structured MCP tool can do the action directly.
+2. Prefer structured tools over raw input.
+3. If the action concerns workspaces, windows, or screen state, inspect state first.
+4. Only use raw mouse/keyboard input when no structured tool can achieve the goal.
+5. Never substitute `launch_app` for a non-launch action.
+6. Never call unrelated tools speculatively.
 
-## References
+## Required tool routing
 
-- `docs/tools.md` — comprehensive tool catalog and expected parameters.
-- `src/tools/windows/windowTools.ts:43-185` — validation of window and workspace tool inputs.
-- `src/backends/windows/x11WindowBackend.ts:142-195` — how calls map to the backend (for debugging failures).
+### Workspace actions
+For switching or reasoning about graphical workspaces:
+- Prefer `switch_workspace`
+- Use `list_windows` or a dedicated workspace/state tool only if needed for grounding
+- Do not call `focus_window` unless the user asked to focus a window
+- Do not call `launch_app`
+
+### Window actions
+For focusing/moving/resizing windows:
+- Use `list_windows` first when window identity is not already known
+- Then use `focus_window`, `move_window`, `set_window_bounds`, or `move_window_to_primary_monitor`
+
+### Screen inspection
+For screenshots, OCR, or visual evidence:
+- Use `take_screenshot`, `inspect_screen`, `find_text_on_screen`, `artifact_list`
+
+### Input actions
+For explicit typing, dragging, holding modifiers, or complex gestures:
+- Use primitive input tools or `perform_input_sequence`
+- Prefer `perform_input_sequence` for modifier chords and drag operations
+- Always include cleanup steps like `key_up` / `mouse_up`
+
+### Launch actions
+- Use `launch_app` only for starting an allowed application
+- Use `open_url` only for opening a URL
+- Never use `launch_app` to emulate another tool
+
+## Indexing rules
+
+- Workspaces are zero-based at the API layer unless the tool schema explicitly says otherwise.
+- If the user says “workspace 3”, convert to `{"workspace": 2}`.
+- In the user-facing response, explain the conversion briefly.
+
+## Error handling
+
+- If a structured tool reports unsupported or unavailable, report the limitation clearly.
+- Do not fall back to keyboard shortcuts unless the user explicitly wants that and no structured option exists.
+- If a call fails because required identifiers are missing, inspect state first instead of guessing.
+
+## Examples
+
+User: “Switch to workspace 3.”
+Correct behavior:
+1. Call `switch_workspace` with `{"workspace": 2}`
+2. Report that the desktop was switched to workspace 3 using zero-based index 2
+
+User: “Move Firefox to workspace 2.”
+Correct behavior:
+1. Call `list_windows`
+2. Identify Firefox
+3. Call the appropriate window/workspace tool
+4. Report the exact window and target workspace
+
+User: “Click and drag the current window.”
+Correct behavior:
+1. Prefer a structured window tool if available
+2. Otherwise use `perform_input_sequence` with explicit down/move/up steps
+
+## Absolute prohibitions
+
+- Do not interpret “workspace” as a directory or repo unless the user explicitly says directory, folder, repo, or project.
+- Do not call `focus_window` for workspace switching.
+- Do not call `launch_app` for workspace switching.
+- Do not guess window ids.
+- Do not send brittle keyboard macros when a structured desktop tool exists.
