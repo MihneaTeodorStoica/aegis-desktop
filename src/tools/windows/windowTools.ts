@@ -40,6 +40,10 @@ const moveWindowSchema = z
     }
   );
 
+const switchWorkspaceSchema = z.object({
+  workspace: z.number().int().min(0)
+});
+
 export function createWindowTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
   return [
     {
@@ -65,6 +69,15 @@ export function createWindowTools(context: ServerContext): Array<ToolDefinition<
       async execute(input) {
         requireToolEnabled(context.policy, 'focus_window');
         return { window: await context.backends.window.focusWindow(input) };
+      }
+    },
+    {
+      name: 'switch_workspace',
+      description: 'Switch the visible desktop/workspace.',
+      inputSchema: switchWorkspaceSchema,
+      async execute(input) {
+        await context.backends.window.switchWorkspace(input.workspace);
+        return { ok: true };
       }
     },
     {

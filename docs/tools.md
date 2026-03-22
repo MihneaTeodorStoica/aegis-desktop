@@ -38,10 +38,13 @@ Returns detected monitor geometry, origin, primary-monitor state, and active sta
 - `close_window`
 - `wait_for_window`
 - `move_window_to_primary_monitor`
+- `switch_workspace`
 
 Window targeting accepts either direct ids or title-based matching depending on the tool.
 
 `move_window` accepts either absolute coordinates (`x` and `y`), a target `workspace`, or both in one request.
+
+`switch_workspace` changes the visible desktop/workspace without touching particular windows.
 
 ## Screen Tools
 

@@ -179,6 +179,9 @@ export function createX11WindowBackend(context: BackendContext): WindowBackend {
     async closeWindow(windowId) {
       await runCommand('wmctrl', ['-ic', windowId], { timeoutMs });
     },
+    async switchWorkspace(workspace) {
+      await runCommand('wmctrl', ['-s', String(workspace)], { timeoutMs });
+    },
     async waitForWindow(query, waitTimeoutMs, intervalMs) {
       const startedAt = Date.now();
       while (Date.now() - startedAt < waitTimeoutMs) {

@@ -67,6 +67,7 @@ export interface WindowBackend {
   getActiveWindow(): Promise<WindowInfo | null>;
   focusWindow(query: WindowQuery): Promise<WindowInfo>;
   moveWindow(windowId: string, options: MoveWindowOptions): Promise<void>;
+  switchWorkspace(workspace: number): Promise<void>;
   resizeWindow(windowId: string, width: number, height: number): Promise<void>;
   closeWindow(windowId: string): Promise<void>;
   waitForWindow(query: WindowQuery, timeoutMs: number, intervalMs: number): Promise<WindowInfo>;

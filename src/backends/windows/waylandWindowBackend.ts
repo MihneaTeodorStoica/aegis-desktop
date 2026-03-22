@@ -53,6 +53,10 @@ export function createWaylandWindowBackend(context: BackendContext): WindowBacke
       void windowId;
       unsupported('close_window');
     },
+    async switchWorkspace(workspace: number): Promise<void> {
+      void workspace;
+      unsupported('switch_workspace');
+    },
     async waitForWindow(
       query: WindowQuery,
       timeoutMs: number,
