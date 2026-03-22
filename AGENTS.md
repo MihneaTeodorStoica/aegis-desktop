@@ -26,7 +26,10 @@
 
 ## Desktop guidance
 
-- Use the [aegis-desktop skill](.codex/skills/aegis-desktop/SKILL.md) whenever the request targets graphical desktop control: switch virtual workspaces, inspect or capture the screen, manage windows, launch allowed desktop apps/URLs, or send explicit mouse/keyboard input. Prefer structured MCP tools over keystroke macros to keep actions deterministic.
+- Use the [aegis-desktop skill](.codex/skills/aegis-desktop/SKILL.md) whenever the request targets graphical desktop control: switch virtual workspaces, inspect or capture the screen, manage windows, launch allowed desktop apps/URLs, or send explicit mouse/keyboard input.
+- Treat those requests as local MCP-execution tasks, not web research tasks.
+- Prefer structured MCP tools over keystroke macros to keep actions deterministic.
+- For explicit, reversible desktop actions, execute directly without an extra confirmation prompt unless the request is ambiguous, destructive, or security-sensitive.
 
 ## Commit & Pull Request Guidelines
 - Follow the existing git history style: short imperative summary (e.g., `Add safe-mode policy checks`).
