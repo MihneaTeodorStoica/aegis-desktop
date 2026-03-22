@@ -30,6 +30,8 @@
 - Treat those requests as local MCP-execution tasks, not web research tasks.
 - Prefer structured MCP tools over keystroke macros to keep actions deterministic.
 - For explicit, reversible desktop actions, execute directly without an extra confirmation prompt unless the request is ambiguous, destructive, or security-sensitive.
+- For coordinate-dependent UI tasks such as dragging from a sidebar or placing content in part of a window, require visual or semantic grounding before sending input.
+- Prefer accessibility inspection first, then active-window screenshots if needed; avoid repeated fullscreen screenshots, especially when `gnome-screenshot` is the active backend.
 
 ## Commit & Pull Request Guidelines
 - Follow the existing git history style: short imperative summary (e.g., `Add safe-mode policy checks`).

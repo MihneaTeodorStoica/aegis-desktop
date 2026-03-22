@@ -37,9 +37,10 @@ For any desktop request, follow this order:
 2. Use `aegis_desktop` MCP tools directly; do not browse the web, search docs, or use generic search tools to decide what to do.
 3. Prefer structured MCP desktop tools over raw mouse/keyboard input.
 4. If the action concerns workspaces, windows, or screen state, inspect local state first when needed.
-5. Only use raw mouse/keyboard input when no structured tool can achieve the goal.
-6. Never substitute `launch_app` for a non-launch action.
-7. Never call unrelated tools speculatively.
+5. For coordinate-dependent or layout-dependent UI tasks such as dragging, dropping, targeting a sidebar item, or positioning content in part of a window, ground the action visually or semantically before sending input.
+6. Only use raw mouse/keyboard input when no structured tool can achieve the goal.
+7. Never substitute `launch_app` for a non-launch action.
+8. Never call unrelated tools speculatively.
 
 ## Required routing and no-web rule
 
@@ -81,12 +82,17 @@ For focusing/moving/resizing windows:
 
 ### Screen inspection
 For screenshots, OCR, or visual evidence:
-- Use `take_screenshot`, `inspect_screen`, `find_text_on_screen`, `window_screenshot`, or `artifact_list`.
+- Prefer `get_accessibility_tree` or `find_semantic_targets` first when the target UI is likely accessible, such as VS Code, browser chrome, menus, sidebars, or standard desktop widgets.
+- If visual grounding is still needed, prefer `window_screenshot` or `inspect_screen` with `mode: "active-window"` before fullscreen capture.
+- Use `take_screenshot`, `inspect_screen`, `find_text_on_screen`, `window_screenshot`, or `artifact_list` as needed.
+- Minimize screenshot count when the screenshot backend is `gnome-screenshot`, because it may flash the screen.
 
 ### Input actions
 For explicit typing, dragging, holding modifiers, or complex gestures:
 - Use primitive input tools or `perform_input_sequence`.
 - Prefer `perform_input_sequence` for modifier chords and drag operations.
+- For drag/drop or placement tasks, inspect the active window first, identify the source and destination, then execute one bounded drag sequence.
+- If the task says to drag something visible in a sidebar or editor, do not substitute keyboard-only actions unless the user explicitly allowed an equivalent non-drag result.
 - Always include cleanup steps like `key_up` / `mouse_up`.
 
 ### Launch actions
@@ -128,6 +134,14 @@ Correct behavior:
 1. Prefer a structured window tool if available.
 2. Otherwise use `perform_input_sequence` with explicit down/move/up steps.
 
+User: “In VS Code, drag cleanup.sh from the sidebar into the right half of the editor.”
+Correct behavior:
+1. Focus the VS Code window.
+2. Inspect the active window with accessibility tools first, or with `window_screenshot` / `inspect_screen(mode: "active-window")` if semantic targeting is insufficient.
+3. Identify the sidebar source target and the destination editor region.
+4. Execute one bounded drag sequence.
+5. Do not replace the drag request with keyboard-only open/split actions unless the user explicitly accepts an equivalent result.
+
 ## Absolute prohibitions
 
 - Do not interpret “workspace” as a directory or repo unless the user explicitly says directory, folder, repo, or project.
@@ -140,3 +154,5 @@ Correct behavior:
 - Do not keep exploring after the requested desktop action has already succeeded.
 - Do not run irrelevant shell commands like `pwd`, `ls`, `true`, `echo`, or `export` during desktop-control flows.
 - Do not perform post-success verification by default for focus, raise, move, resize, or workspace-switch actions.
+- Do not perform coordinate-based clicks or drags in application UIs without first grounding the target visually or semantically.
+- Do not replace an explicit drag/drop request with a keyboard shortcut workflow unless the user asked for an equivalent end state rather than the physical gesture.
