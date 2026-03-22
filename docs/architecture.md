@@ -1,81 +1,21 @@
-# Architecture
+# Architecture Overview
 
-## Design Goals
+`aegis-desktop` separates the desktop-control surface into clear, composable layers so each responsibility can evolve independently while staying verifiable.
 
-`aegis-desktop` is built around a small number of strong boundaries:
+## Layers
 
-- MCP transport should not know about desktop command details.
-- tool handlers should be declarative and thin.
-- backends should hide OS-specific command execution behind interfaces.
-- policy should be centrally enforced, not reimplemented ad hoc.
-- command execution should be centralized for timeouts and structured failure handling.
+- **Transport and registration.** The MCP stdio server bootstraps the tool catalog, wires them to schemas, and exposes structured MCP descriptors through `src/server/`.
+- **Backend abstractions.** Window, screenshot, input, monitor, OCR, launch, clipboard, and accessibility interfaces live in `src/backends/`. Each backend exposes capability detection and declarative methods that the tool layer invokes.
+- **Tools.** Tool handlers in `src/tools/` validate inputs with Zod, call policy checks, and delegate to a backend implementation. The defensive schemas and policy gates keep surface interactions predictable.
+- **Policy and configuration.** Policy checks in `src/policy/` enforce safe-mode blocking, coordinate validation, rate limiting, and launch allowlists based on typed config defaults.
+- **Utilities.** Logging, matching, command execution, and input-sequence helpers keep the implementation DRY while staying testable.
 
-## Layering
+## Backend Strategy
 
-### Entry Point
+- X11 first: window management via `wmctrl`/`xdotool`, screenshots via `maim`/`import`/`gnome-screenshot`, monitors via `xrandr`, and input via `xdotool`.
+- Optional tools (OCR via `tesseract`, Wayland helpers, clipboard workflows) plug behind the same interfaces so capability reporting is honest about what is available.
+- Unsupported or partial backends (for example Wayland window control) surface clear errors and capability flags instead of failing silently.
 
-`src/index.ts` loads config, creates the logger, detects backends, creates the policy engine, and boots the MCP server.
+## Extensibility
 
-### Transport
-
-`src/server/createServer.ts` wires the official MCP SDK `Server` to stdio transport. Tool request handling is centralized there so all tool execution passes through common logging and structured error normalization.
-
-### Tool Registration
-
-`src/server/registerTools.ts` assembles the tool catalog from domain-specific modules:
-
-- `src/tools/system/`
-- `src/tools/windows/`
-- `src/tools/screen/`
-- `src/tools/input/`
-- `src/tools/clipboard/`
-- `src/tools/apps/`
-
-### Backends
-
-`src/backends/types.ts` defines swappable interfaces for:
-
-- window management
-- screenshots
-- input
-- monitors
-- OCR
-- launching
-- clipboard
-- accessibility
-
-Current implementations are Linux/X11-focused and rely on mature CLI tools. The backend layer now also includes real session-aware backend selection so Wayland can expose partial support honestly instead of inheriting X11 assumptions.
-
-### Policy
-
-`src/policy/policy.ts` enforces:
-
-- tool enable/disable rules
-- safe mode restrictions
-- launch allowlist rules
-- env allowlist rules
-- screenshot throttling
-- coordinate validation
-
-### Input Sequence Engine
-
-Complex input is intentionally separated from tool handlers:
-
-- `src/input-sequence/schema.ts`
-- `src/input-sequence/normalize.ts`
-- `src/input-sequence/execute.ts`
-- `src/input-sequence/types.ts`
-
-This keeps validation, normalization, and runtime execution distinct, which makes the sequence tool easier to extend later.
-
-### Coordinate Routing
-
-Monitor-aware coordinate routing lives in `src/utils/coordinates.ts`. Tools can accept absolute coordinates or monitor-relative coordinates, resolve them through the monitor backend, and only then call the input or screenshot backends.
-
-## Error Model
-
-Tools should fail with structured, debuggable information. Runtime failures are normalized in `src/server/errors.ts` so callers receive machine-readable error codes and context instead of raw thrown values.
-
-## Why X11 First
-
-Synthetic input and window control on Linux are materially different between X11 and Wayland. X11 still provides a practical baseline using mature command-line tools. The architecture keeps those dependencies behind interfaces so Wayland support can be added honestly rather than faked.
+Additions follow a predictable path: extend the relevant backend interface in `src/backends/types.ts`, implement the backend, expose its detection, add policy checks when needed, and register the tool in `src/server/registerTools.ts`. High-level documentation and tests keep regressions from creeping in.

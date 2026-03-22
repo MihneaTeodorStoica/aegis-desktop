@@ -54,13 +54,19 @@ export interface WindowQuery {
   title?: string;
 }
 
+export interface MoveWindowOptions {
+  x?: number;
+  y?: number;
+  workspace?: number;
+}
+
 export interface WindowBackend {
   readonly name: string;
   getCapability(): Promise<CapabilityState>;
   listWindows(): Promise<WindowInfo[]>;
   getActiveWindow(): Promise<WindowInfo | null>;
   focusWindow(query: WindowQuery): Promise<WindowInfo>;
-  moveWindow(windowId: string, x: number, y: number): Promise<void>;
+  moveWindow(windowId: string, options: MoveWindowOptions): Promise<void>;
   resizeWindow(windowId: string, width: number, height: number): Promise<void>;
   closeWindow(windowId: string): Promise<void>;
   waitForWindow(query: WindowQuery, timeoutMs: number, intervalMs: number): Promise<WindowInfo>;

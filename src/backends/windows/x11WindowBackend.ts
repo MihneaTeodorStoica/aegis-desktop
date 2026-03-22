@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type {
   BackendContext,
   CapabilityState,
+  MoveWindowOptions,
   WindowBackend,
   WindowInfo,
   WindowQuery
@@ -151,10 +152,22 @@ export function createX11WindowBackend(context: BackendContext): WindowBackend {
       await runCommand('wmctrl', ['-ia', window.id], { timeoutMs });
       return window;
     },
-    async moveWindow(windowId, x, y) {
-      await runCommand('wmctrl', ['-ir', windowId, '-e', `0,${x},${y},-1,-1`], {
-        timeoutMs
-      });
+    async moveWindow(windowId, options: MoveWindowOptions) {
+      if (options.workspace !== undefined) {
+        await runCommand('wmctrl', ['-ir', windowId, '-t', String(options.workspace)], {
+          timeoutMs
+        });
+      }
+
+      if (options.x !== undefined && options.y !== undefined) {
+        await runCommand(
+          'wmctrl',
+          ['-ir', windowId, '-e', `0,${options.x},${options.y},-1,-1`],
+          {
+            timeoutMs
+          }
+        );
+      }
     },
     async resizeWindow(windowId, width, height) {
       await runCommand(

@@ -1,6 +1,7 @@
 import type {
   BackendContext,
   CapabilityState,
+  MoveWindowOptions,
   WindowBackend,
   WindowInfo,
   WindowQuery
@@ -37,10 +38,9 @@ export function createWaylandWindowBackend(context: BackendContext): WindowBacke
       void query;
       unsupported('focus_window');
     },
-    async moveWindow(windowId: string, x: number, y: number): Promise<void> {
+    async moveWindow(windowId: string, options: MoveWindowOptions): Promise<void> {
       void windowId;
-      void x;
-      void y;
+      void options;
       unsupported('move_window');
     },
     async resizeWindow(windowId: string, width: number, height: number): Promise<void> {

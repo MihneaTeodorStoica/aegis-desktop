@@ -41,6 +41,8 @@ Returns detected monitor geometry, origin, primary-monitor state, and active sta
 
 Window targeting accepts either direct ids or title-based matching depending on the tool.
 
+`move_window` accepts either absolute coordinates (`x` and `y`), a target `workspace`, or both in one request.
+
 ## Screen Tools
 
 ### `take_screenshot`

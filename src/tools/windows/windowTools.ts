@@ -17,6 +17,29 @@ const windowQuerySchema = windowQueryBaseSchema.refine(
   }
 );
 
+const moveWindowSchema = z
+  .object({
+    windowId: z.string().min(1),
+    x: z.number().int().min(0).optional(),
+    y: z.number().int().min(0).optional(),
+    workspace: z.number().int().min(0).optional()
+  })
+  .refine(
+    (value) =>
+      value.workspace !== undefined || (value.x !== undefined && value.y !== undefined),
+    {
+      message: 'Provide workspace or both x and y'
+    }
+  )
+  .refine(
+    (value) =>
+      (value.x === undefined && value.y === undefined) ||
+      (value.x !== undefined && value.y !== undefined),
+    {
+      message: 'Provide both x and y together'
+    }
+  );
+
 export function createWindowTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
   return [
     {
@@ -46,16 +69,18 @@ export function createWindowTools(context: ServerContext): Array<ToolDefinition<
     },
     {
       name: 'move_window',
-      description: 'Move a window to absolute x and y coordinates.',
-      inputSchema: z.object({
-        windowId: z.string().min(1),
-        x: z.number().int().min(0),
-        y: z.number().int().min(0)
-      }),
+      description: 'Move a window to absolute x and y coordinates and/or another workspace.',
+      inputSchema: moveWindowSchema,
       async execute(input) {
         requireToolEnabled(context.policy, 'move_window');
-        context.policy.assertCoordinates(input.x, input.y);
-        await context.backends.window.moveWindow(input.windowId, input.x, input.y);
+        if (input.x !== undefined && input.y !== undefined) {
+          context.policy.assertCoordinates(input.x, input.y);
+        }
+        await context.backends.window.moveWindow(input.windowId, {
+          x: input.x,
+          y: input.y,
+          workspace: input.workspace
+        });
         return { ok: true };
       }
     },
@@ -89,7 +114,10 @@ export function createWindowTools(context: ServerContext): Array<ToolDefinition<
       }),
       async execute(input) {
         requireToolEnabled(context.policy, 'set_window_bounds');
-        await context.backends.window.moveWindow(input.windowId, input.x, input.y);
+        await context.backends.window.moveWindow(input.windowId, {
+          x: input.x,
+          y: input.y
+        });
         await context.backends.window.resizeWindow(
           input.windowId,
           input.width,
@@ -137,7 +165,7 @@ export function createWindowTools(context: ServerContext): Array<ToolDefinition<
       }),
       async execute(input) {
         requireToolEnabled(context.policy, 'move_window_to_primary_monitor');
-        await context.backends.window.moveWindow(input.windowId, 0, 0);
+        await context.backends.window.moveWindow(input.windowId, { x: 0, y: 0 });
         return { ok: true };
       }
     }
