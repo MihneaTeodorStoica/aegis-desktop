@@ -54,6 +54,12 @@ For any desktop request, follow this order:
 - Example: “Switch to workspace 3” should trigger the `switch_workspace` immediately.
 - Ask only when the target is ambiguous, destructive, security-sensitive, or would affect data the user did not mention.
 
+## Completion policy
+
+- After the requested desktop action succeeds, stop and report success.
+- Do not perform extra verification, capability checks, screenshots, or follow-up state reads unless the user asked to verify the result or the tool reported ambiguous success.
+- Do not reread the skill after the requested action has already succeeded.
+
 ## Required tool routing
 
 ### Workspace actions
@@ -69,6 +75,9 @@ For switching or reasoning about graphical workspaces:
 For focusing/moving/resizing windows:
 - Use `list_windows` first when window identity is not already known.
 - Then use `focus_window`, `move_window`, `set_window_bounds`, `move_window_to_primary_monitor`, or another dedicated window tool.
+- For “bring Firefox up” or similar raise/focus requests, use this recipe: `list_windows` -> identify the target window -> `focus_window({ id: ... })` -> stop.
+- Do not call `focus_window({})`; provide exactly one of `id`, `exactTitle`, or `title`.
+- Do not run shell commands for ordinary window focus/raise actions.
 
 ### Screen inspection
 For screenshots, OCR, or visual evidence:
@@ -128,3 +137,6 @@ Correct behavior:
 - Do not guess window ids.
 - Do not send brittle keyboard macros when a structured desktop tool exists.
 - Do not ask for extra confirmation before a simple requested desktop action unless there is real ambiguity or risk.
+- Do not keep exploring after the requested desktop action has already succeeded.
+- Do not run irrelevant shell commands like `pwd`, `ls`, `true`, `echo`, or `export` during desktop-control flows.
+- Do not perform post-success verification by default for focus, raise, move, resize, or workspace-switch actions.
