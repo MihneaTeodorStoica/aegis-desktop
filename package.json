@@ -1,0 +1,68 @@
+{
+  "name": "aegis-desktop",
+  "version": "0.1.0",
+  "description": "Extensible desktop-control MCP server for Linux-first agentic automation, with pluggable backends for windows, input, screenshots, OCR, app launching, and policy-aware computer interaction.",
+  "type": "module",
+  "bin": {
+    "aegis-desktop": "./dist/src/index.js"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src tests --ext .ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/src/index.js",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "desktop-control",
+    "desktop-automation",
+    "computer-use",
+    "agentic-ai",
+    "ai-agent",
+    "automation",
+    "linux",
+    "x11",
+    "wayland",
+    "typescript",
+    "nodejs",
+    "ocr",
+    "input-automation",
+    "window-management",
+    "screenshot",
+    "gui-automation",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/aegis-desktop.git"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
+  }
+}
