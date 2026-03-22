@@ -351,7 +351,8 @@ Example local stdio configuration for Codex:
       "env": {
         "AEGIS_ARTIFACT_DIR": "/absolute/path/to/aegis-desktop/artifacts",
         "AEGIS_SAFE_MODE": "false",
-        "AEGIS_OCR_ENABLED": "true"
+        "AEGIS_OCR_ENABLED": "true",
+        "XDG_SESSION_TYPE": "x11"
       }
     }
   }

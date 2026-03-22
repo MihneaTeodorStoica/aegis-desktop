@@ -95,17 +95,22 @@ export function createLinuxMonitorBackend(context: BackendContext): MonitorBacke
 
   async function listMonitors(): Promise<MonitorInfo[]> {
     const sessionType = detectSessionType();
-    if (sessionType === 'x11' && (await isCommandAvailable('xrandr'))) {
+    const hasXrandr = await isCommandAvailable('xrandr');
+    const hasWlrRandr = await isCommandAvailable('wlr-randr');
+
+    if ((sessionType === 'x11' || sessionType === 'unknown') && hasXrandr) {
       const result = await runCommand('xrandr', ['--listmonitors'], { timeoutMs });
       return parseXrandrMonitors(result.stdout);
     }
 
-    if (sessionType === 'wayland' && (await isCommandAvailable('wlr-randr'))) {
+    if ((sessionType === 'wayland' || sessionType === 'unknown') && hasWlrRandr) {
       const result = await runCommand('wlr-randr', [], { timeoutMs });
       return parseWlrRandr(result.stdout);
     }
 
-    throw new Error('No monitor backend available for current session');
+    throw new Error(
+      `No monitor backend available for current session (sessionType=${sessionType})`
+    );
   }
 
   return {

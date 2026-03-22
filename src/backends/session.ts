@@ -8,5 +8,11 @@ export function detectSessionType(): SessionType {
   if (value === 'wayland') {
     return 'wayland';
   }
+  if (process.env.WAYLAND_DISPLAY) {
+    return 'wayland';
+  }
+  if (process.env.DISPLAY) {
+    return 'x11';
+  }
   return 'unknown';
 }
