@@ -5,6 +5,24 @@ import type { ServerContext } from '../../server/context.js';
 import { requireToolEnabled } from '../../policy/checks.js';
 import { createPerformInputSequenceTool } from './performInputSequence.js';
 import { resolvePointTarget } from '../../utils/coordinates.js';
+import { resolvePointInWindow, resolveWindowQuery } from '../../utils/windowTargets.js';
+
+const windowQuerySchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    exactTitle: z.string().min(1).optional(),
+    title: z.string().min(1).optional()
+  })
+  .strict();
+
+const windowPointSchema = z
+  .object({
+    x: z.number().int().min(0).optional(),
+    y: z.number().int().min(0).optional(),
+    x_ratio: z.number().min(0).max(1).optional(),
+    y_ratio: z.number().min(0).max(1).optional()
+  })
+  .strict();
 
 const coordinateTargetSchema = z
   .object({
@@ -34,6 +52,12 @@ const coordinateTargetSchema = z
 export function createInputTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
   async function resolveTarget(input: z.infer<typeof coordinateTargetSchema>) {
     return resolvePointTarget(input, await context.backends.monitor.listMonitors());
+  }
+
+  async function resolveWindowTarget(input: z.infer<typeof windowQuerySchema>) {
+    const activeWindow = await context.backends.window.getActiveWindow().catch(() => null);
+    const windows = await context.backends.window.listWindows();
+    return resolveWindowQuery(input, windows, activeWindow);
   }
 
   return [
@@ -101,6 +125,137 @@ export function createInputTools(context: ServerContext): Array<ToolDefinition<z
         context.policy.assertCoordinates(target.x, target.y);
         await context.backends.input.mouseMove(target.x, target.y);
         return { ok: true };
+      }
+    },
+    {
+      name: 'move_mouse_to_window',
+      description:
+        'Move the pointer to a point inside a target window using window coordinates or window-relative ratios.',
+      inputSchema: windowQuerySchema.and(windowPointSchema),
+      async execute(input) {
+        requireToolEnabled(context.policy, 'mouse_move');
+        const window = await resolveWindowTarget(input);
+        const target = resolvePointInWindow(window, input);
+        context.policy.assertCoordinates(target.x, target.y);
+        await context.backends.input.mouseMove(target.x, target.y);
+        return {
+          ok: true,
+          target,
+          window
+        };
+      }
+    },
+    {
+      name: 'click_in_window',
+      description:
+        'Click inside a target window using window coordinates or window-relative ratios.',
+      inputSchema: windowQuerySchema
+        .and(windowPointSchema)
+        .and(
+          z
+            .object({
+              button: z.enum(['left', 'middle', 'right']).default('left'),
+              count: z.number().int().positive().default(1),
+              activate: z.boolean().default(true)
+            })
+            .strict()
+        ),
+      async execute(input) {
+        requireToolEnabled(context.policy, 'mouse_click');
+        let window = await resolveWindowTarget(input);
+        if (input.activate && !window.focused) {
+          window = await context.backends.window.focusWindow({ id: window.id });
+        }
+        const target = resolvePointInWindow(window, input);
+        context.policy.assertCoordinates(target.x, target.y);
+        await context.backends.input.mouseClick(input.button, input.count, target.x, target.y);
+        return {
+          ok: true,
+          target,
+          window
+        };
+      }
+    },
+    {
+      name: 'double_click_in_window',
+      description:
+        'Double click inside a target window using window coordinates or window-relative ratios.',
+      inputSchema: windowQuerySchema
+        .and(windowPointSchema)
+        .and(
+          z
+            .object({
+              button: z.enum(['left', 'middle', 'right']).default('left'),
+              activate: z.boolean().default(true)
+            })
+            .strict()
+        ),
+      async execute(input) {
+        requireToolEnabled(context.policy, 'mouse_click');
+        let window = await resolveWindowTarget(input);
+        if (input.activate && !window.focused) {
+          window = await context.backends.window.focusWindow({ id: window.id });
+        }
+        const target = resolvePointInWindow(window, input);
+        context.policy.assertCoordinates(target.x, target.y);
+        await context.backends.input.mouseClick(input.button, 2, target.x, target.y);
+        return {
+          ok: true,
+          target,
+          window
+        };
+      }
+    },
+    {
+      name: 'drag_in_window',
+      description:
+        'Drag within a target window using window coordinates or window-relative ratios for start and end points.',
+      inputSchema: windowQuerySchema.and(
+        z
+          .object({
+            start_x: z.number().int().min(0).optional(),
+            start_y: z.number().int().min(0).optional(),
+            start_x_ratio: z.number().min(0).max(1).optional(),
+            start_y_ratio: z.number().min(0).max(1).optional(),
+            end_x: z.number().int().min(0).optional(),
+            end_y: z.number().int().min(0).optional(),
+            end_x_ratio: z.number().min(0).max(1).optional(),
+            end_y_ratio: z.number().min(0).max(1).optional(),
+            durationMs: z.number().int().positive().optional(),
+            activate: z.boolean().default(true)
+          })
+          .strict()
+      ),
+      async execute(input) {
+        requireToolEnabled(context.policy, 'mouse_drag');
+        let window = await resolveWindowTarget(input);
+        if (input.activate && !window.focused) {
+          window = await context.backends.window.focusWindow({ id: window.id });
+        }
+        const from = resolvePointInWindow(window, {
+          x: input.start_x,
+          y: input.start_y,
+          x_ratio: input.start_x_ratio,
+          y_ratio: input.start_y_ratio
+        });
+        const to = resolvePointInWindow(window, {
+          x: input.end_x,
+          y: input.end_y,
+          x_ratio: input.end_x_ratio,
+          y_ratio: input.end_y_ratio
+        });
+        context.policy.assertCoordinates(from.x, from.y);
+        context.policy.assertCoordinates(to.x, to.y);
+        await context.backends.input.mouseMove(from.x, from.y);
+        await context.backends.input.mouseDown('left');
+        await context.backends.input.mouseDrag(from.x, from.y, to.x, to.y, input.durationMs);
+        await context.backends.input.mouseUp('left');
+        return {
+          ok: true,
+          from,
+          to,
+          window
+        };
       }
     },
     {

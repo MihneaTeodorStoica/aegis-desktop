@@ -1,5 +1,33 @@
 import { z } from 'zod';
 
+function normalizeStepAlias(step: unknown): unknown {
+  if (!step || typeof step !== 'object' || Array.isArray(step)) {
+    return step;
+  }
+
+  const record = { ...(step as Record<string, unknown>) };
+  const rawType = typeof record.type === 'string' ? record.type : undefined;
+
+  if (rawType) {
+    record.type = rawType
+      .replace(/([a-z])([A-Z])/g, '$1_$2')
+      .replace(/-/g, '_')
+      .toLowerCase();
+  }
+
+  if (record.durationMs !== undefined && record.duration_ms === undefined) {
+    record.duration_ms = record.durationMs;
+  }
+  if (record.delayMs !== undefined && record.delay_ms === undefined) {
+    record.delay_ms = record.delayMs;
+  }
+  if (record.clicks !== undefined && record.count === undefined) {
+    record.count = record.clicks;
+  }
+
+  return record;
+}
+
 const buttonSchema = z.enum(['left', 'middle', 'right']);
 const keySchema = z
   .string()
@@ -70,11 +98,45 @@ export const sequenceStepSchema = z.discriminatedUnion('type', [
   })
 ]);
 
-export const performInputSequenceSchema = z.object({
+export const performInputSequenceSchema = z.preprocess((input) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return input;
+  }
+
+  const record = { ...(input as Record<string, unknown>) };
+  const rawSteps = Array.isArray(record.steps)
+    ? record.steps
+    : Array.isArray(record.sequence)
+      ? record.sequence
+      : undefined;
+
+  if (rawSteps) {
+    record.steps = rawSteps.map((step) => normalizeStepAlias(step));
+  }
+  delete record.sequence;
+
+  if (record.defaultDelayMs !== undefined && record.default_delay_ms === undefined) {
+    record.default_delay_ms = record.defaultDelayMs;
+  }
+  if (record.abortOnError !== undefined && record.abort_on_error === undefined) {
+    record.abort_on_error = record.abortOnError;
+  }
+  if (record.cleanupStuckInputs !== undefined && record.cleanup_stuck_inputs === undefined) {
+    record.cleanup_stuck_inputs = record.cleanupStuckInputs;
+  }
+  if (record.clampToScreen !== undefined && record.clamp_to_screen === undefined) {
+    record.clamp_to_screen = record.clampToScreen;
+  }
+  if (record.dryRun !== undefined && record.dry_run === undefined) {
+    record.dry_run = record.dryRun;
+  }
+
+  return record;
+}, z.object({
   steps: z.array(sequenceStepSchema).min(1).max(512),
   default_delay_ms: nonNegativeInt.optional(),
   abort_on_error: z.boolean().default(true),
   cleanup_stuck_inputs: z.boolean().default(true),
   clamp_to_screen: z.boolean().default(true),
   dry_run: z.boolean().default(false)
-});
+}));

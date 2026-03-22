@@ -23,6 +23,11 @@ Returns backend availability and degradation details.
 
 Returns readiness and backend diagnostics.
 
+### `get_desktop_snapshot`
+
+Returns a cheap structured desktop snapshot without taking a screenshot, including pointer position,
+active window, and a bounded list of visible windows.
+
 ### `list_monitors`
 
 Returns detected monitor geometry, origin, primary-monitor state, and active state.
@@ -64,6 +69,14 @@ Region capture can be expressed with absolute coordinates or monitor-relative co
 
 Captures a screenshot and optionally performs OCR.
 
+### `window_screenshot`
+
+Captures the active window to an artifact file.
+
+Optionally accepts a window target (`id`, `exactTitle`, or `title`) and activates it first.
+The response includes `visual_frame` metadata so window-relative ratios can be reused with
+`move_mouse_to_window`, `click_in_window`, `double_click_in_window`, and `drag_in_window`.
+
 ### `find_text_on_screen`
 
 Runs OCR on a fresh screenshot and checks whether the query is present.
@@ -88,12 +101,19 @@ These primitives are intended for stateful agent interactions.
 
 - `mouse_click`
 - `mouse_drag`
+- `move_mouse_to_window`
+- `click_in_window`
+- `double_click_in_window`
+- `drag_in_window`
 - `type_text`
 - `press_keys`
 - `scroll_mouse`
 - `get_pointer_position`
 
 These remain available for convenience, but they share the same backend semantics as the primitives.
+
+Window-relative input tools accept either local window coordinates (`x`/`y`) or window-relative
+ratios (`x_ratio`/`y_ratio`) and are preferred after inspecting a window screenshot.
 
 Several pointer tools also support monitor-relative coordinates through `monitorId`, `relativeX`, and `relativeY`.
 

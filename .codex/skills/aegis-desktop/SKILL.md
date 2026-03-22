@@ -28,6 +28,7 @@ Do not use this skill for:
 - It never means the shell current directory.
 - It never means a repository root or coding workspace.
 - If the user says “switch to workspace 3”, interpret this as changing the visible desktop to virtual workspace 3.
+- If the user names a desktop app first, such as “go to VS Code” or “in Firefox”, treat the rest of the request as UI actions inside that app unless the user explicitly asks to search the filesystem or inspect a repository.
 
 ## Required execution policy
 
@@ -79,6 +80,7 @@ For focusing/moving/resizing windows:
 - For “bring Firefox up” or similar raise/focus requests, use this recipe: `list_windows` -> identify the target window -> `focus_window({ id: ... })` -> stop.
 - Do not call `focus_window({})`; provide exactly one of `id`, `exactTitle`, or `title`.
 - Do not run shell commands for ordinary window focus/raise actions.
+- If the request says “go to VS Code and open/click/double click/drag …”, stay in desktop mode; do not switch to shell file search just because the request includes a filename.
 
 ### Screen inspection
 For screenshots, OCR, or visual evidence:
@@ -91,6 +93,7 @@ For screenshots, OCR, or visual evidence:
 For explicit typing, dragging, holding modifiers, or complex gestures:
 - Use primitive input tools or `perform_input_sequence`.
 - Prefer `perform_input_sequence` for modifier chords and drag operations.
+- Prefer `move_mouse_to_window`, `click_in_window`, `double_click_in_window`, and `drag_in_window` for window-relative actions after a window screenshot or other window grounding step.
 - For drag/drop or placement tasks, inspect the active window first, identify the source and destination, then execute one bounded drag sequence.
 - If the task says to drag something visible in a sidebar or editor, do not substitute keyboard-only actions unless the user explicitly allowed an equivalent non-drag result.
 - Always include cleanup steps like `key_up` / `mouse_up`.
@@ -139,8 +142,15 @@ Correct behavior:
 1. Focus the VS Code window.
 2. Inspect the active window with accessibility tools first, or with `window_screenshot` / `inspect_screen(mode: "active-window")` if semantic targeting is insufficient.
 3. Identify the sidebar source target and the destination editor region.
-4. Execute one bounded drag sequence.
+4. Prefer `drag_in_window` with window-relative ratios derived from the inspection step.
 5. Do not replace the drag request with keyboard-only open/split actions unless the user explicitly accepts an equivalent result.
+
+User: “Go to VS Code, and double click on Xum.cpp.”
+Correct behavior:
+1. Focus the VS Code window.
+2. Ground the target with `get_accessibility_tree`, `find_semantic_targets`, or `window_screenshot`.
+3. Use `double_click_in_window` on the grounded target.
+4. Do not run `pwd`, `ls`, or `rg --files` unless the user explicitly asked to locate the file on disk.
 
 ## Absolute prohibitions
 
@@ -156,3 +166,4 @@ Correct behavior:
 - Do not perform post-success verification by default for focus, raise, move, resize, or workspace-switch actions.
 - Do not perform coordinate-based clicks or drags in application UIs without first grounding the target visually or semantically.
 - Do not replace an explicit drag/drop request with a keyboard shortcut workflow unless the user asked for an equivalent end state rather than the physical gesture.
+- Do not switch into repository or filesystem search mode for app-scoped UI requests unless the user explicitly asked to find something on disk.

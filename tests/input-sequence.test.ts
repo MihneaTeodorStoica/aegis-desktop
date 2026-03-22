@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { InputBackend } from '../src/backends/types.js';
 import { executeInputSequence } from '../src/input-sequence/execute.js';
 import { normalizeInputSequence } from '../src/input-sequence/normalize.js';
+import { performInputSequenceSchema } from '../src/input-sequence/schema.js';
 
 function createBackend(): InputBackend {
   return {
@@ -35,6 +36,31 @@ function createBackend(): InputBackend {
 }
 
 describe('input sequence normalization', () => {
+  it('accepts common top-level and step aliases', () => {
+    const parsed = performInputSequenceSchema.parse({
+      sequence: [
+        { type: 'mouseMove', x: 10, y: 20, durationMs: 25 },
+        { type: 'mouseClick', button: 'left', clicks: 2 }
+      ],
+      defaultDelayMs: 5,
+      dryRun: true
+    });
+
+    expect(parsed.default_delay_ms).toBe(5);
+    expect(parsed.dry_run).toBe(true);
+    expect(parsed.steps[0]).toMatchObject({
+      type: 'mouse_move',
+      x: 10,
+      y: 20,
+      duration_ms: 25
+    });
+    expect(parsed.steps[1]).toMatchObject({
+      type: 'mouse_click',
+      button: 'left',
+      count: 2
+    });
+  });
+
   it('clamps coordinates when configured', () => {
     const result = normalizeInputSequence(
       [{ type: 'mouse_move', x: 300, y: 20 }],

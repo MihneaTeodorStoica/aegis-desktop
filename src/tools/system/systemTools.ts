@@ -20,6 +20,37 @@ export function createSystemTools(context: ServerContext): Array<ToolDefinition<
       }
     },
     {
+      name: 'get_desktop_snapshot',
+      description: 'Return a cheap structured desktop snapshot without taking a screenshot.',
+      inputSchema: z.object({
+        window_limit: z.number().int().min(0).optional()
+      }),
+      async execute(input) {
+        const pointer = await context.backends.input.getPointerPosition().catch(() => null);
+        const activeWindow = await context.backends.window.getActiveWindow().catch(() => null);
+        const windows = await context.backends.window.listWindows().catch(() => []);
+        const ordered = windows.sort((left, right) => {
+          const leftFocused = left.focused ? 0 : 1;
+          const rightFocused = right.focused ? 0 : 1;
+          const leftVisible = left.visible === false ? 1 : 0;
+          const rightVisible = right.visible === false ? 1 : 0;
+          return (
+            leftFocused - rightFocused ||
+            leftVisible - rightVisible ||
+            left.title.localeCompare(right.title)
+          );
+        });
+        const limit = input.window_limit ?? 8;
+
+        return {
+          mouse_position: pointer,
+          active_window: activeWindow,
+          visible_windows: ordered.slice(0, Math.max(limit, 0)),
+          visible_window_count: windows.length
+        };
+      }
+    },
+    {
       name: 'list_capabilities',
       description: 'Return detected capability status for each backend and integration.',
       inputSchema: z.object({}).strict(),

@@ -7,6 +7,7 @@ import type { ServerContext } from '../../server/context.js';
 import { ensureDir } from '../../utils/paths.js';
 import { requireToolEnabled } from '../../policy/checks.js';
 import { resolvePointTarget } from '../../utils/coordinates.js';
+import { buildWindowVisualFrame, resolveWindowQuery } from '../../utils/windowTargets.js';
 
 function artifactName(prefix: string): string {
   const stamp = new Date().toISOString().replaceAll(':', '-');
@@ -14,6 +15,15 @@ function artifactName(prefix: string): string {
 }
 
 export function createScreenTools(context: ServerContext): Array<ToolDefinition<z.ZodTypeAny, unknown>> {
+  const windowQuerySchema = z
+    .object({
+      id: z.string().min(1).optional(),
+      exactTitle: z.string().min(1).optional(),
+      title: z.string().min(1).optional(),
+      activate: z.boolean().default(true)
+    })
+    .strict();
+
   const regionSchema = z
     .object({
       x: z.number().int().min(0).optional(),
@@ -130,6 +140,18 @@ export function createScreenTools(context: ServerContext): Array<ToolDefinition<
     };
   }
 
+  async function resolveWindowTarget(
+    input: z.infer<typeof windowQuerySchema>
+  ) {
+    const activeWindow = await context.backends.window.getActiveWindow().catch(() => null);
+    const windows = await context.backends.window.listWindows().catch(() => []);
+    let window = resolveWindowQuery(input, windows, activeWindow);
+    if (input.activate && !window.focused) {
+      window = await context.backends.window.focusWindow({ id: window.id });
+    }
+    return window;
+  }
+
   return [
     {
       name: 'take_screenshot',
@@ -155,16 +177,30 @@ export function createScreenTools(context: ServerContext): Array<ToolDefinition<
     {
       name: 'window_screenshot',
       description: 'Capture the active window to an artifact file.',
-      inputSchema: z.object({}).strict(),
-      async execute() {
+      inputSchema: windowQuerySchema.partial(),
+      async execute(input) {
         requireToolEnabled(context.policy, 'window_screenshot');
         context.policy.assertScreenshotAllowed({});
+        const window =
+          input.id || input.exactTitle || input.title
+            ? await resolveWindowTarget({
+                id: input.id,
+                exactTitle: input.exactTitle,
+                title: input.title,
+                activate: input.activate ?? true
+              })
+            : await context.backends.window.getActiveWindow().catch(() => null);
         const dir = await ensureDir(context.config.artifactDir);
         const path = join(dir, artifactName('window'));
-        return context.backends.screenshot.takeScreenshot({
+        const screenshot = await context.backends.screenshot.takeScreenshot({
           mode: 'active-window',
           outputPath: path
         });
+        return {
+          ...screenshot,
+          window,
+          visual_frame: window ? buildWindowVisualFrame(window) : null
+        };
       }
     },
     {
